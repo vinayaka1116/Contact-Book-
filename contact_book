@@ -1,0 +1,456 @@
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <cctype>
+
+using namespace std;
+
+struct Contact {
+    string name;
+    string phone;
+    Contact* next;
+    
+    Contact(const string& n, const string& p) : name(n), phone(p), next(nullptr) {}
+};
+
+// Helper function: case-insensitive string compare
+int strcasecmp(const string& s1, const string& s2) {
+    size_t len = min(s1.size(), s2.size());
+    for (size_t i = 0; i < len; i++) {
+        char c1 = tolower(s1[i]);
+        char c2 = tolower(s2[i]);
+        if (c1 < c2) return -1;
+        if (c1 > c2) return 1;
+    }
+    if (s1.size() < s2.size()) return -1;
+    if (s1.size() > s2.size()) return 1;
+    return 0;
+}
+
+void insert_contact(Contact*& head, Contact* new_contact) {
+    if (!head || strcasecmp(new_contact->name, head->name) < 0) {
+        new_contact->next = head;
+        head = new_contact;
+        return;
+    }
+    Contact* current = head;
+    while (current->next && strcasecmp(new_contact->name, current->next->name) > 0) {
+        current = current->next;
+    }
+    new_contact->next = current->next;
+    current->next = new_contact;
+}
+
+Contact* search_contact(Contact* head, const string& name) {
+    Contact* current = head;
+    while (current) {
+        if (strcasecmp(current->name, name) == 0)
+            return current;
+        current = current->next;
+    }
+    return nullptr;
+}
+
+bool update_contact(Contact* head, const string& name, const string& new_phone) {
+    Contact* contact = search_contact(head, name);
+    if (contact) {
+        contact->phone = new_phone;
+        return true;
+    }
+    return false;
+}
+
+bool delete_contact(Contact*& head, const string& name) {
+    Contact* current = head;
+    Contact* prev = nullptr;
+    while (current && strcasecmp(current->name, name) != 0) {
+        prev = current;
+        current = current->next;
+    }
+    if (!current) return false;
+
+    if (!prev) {
+        head = current->next;
+    } else {
+        prev->next = current->next;
+    }
+    delete current;
+    return true;
+}
+
+void save_contacts(Contact* head, const string& filename) {
+    ofstream file(filename);
+    if (!file) {
+        cerr << "Error saving contacts to file." << endl;
+        return;
+    }
+    Contact* current = head;
+    while (current) {
+        file << current->name << "," << current->phone << "\n";
+        current = current->next;
+    }
+    file.close();
+}
+
+void load_contacts(Contact*& head, const string& filename) {
+    ifstream file(filename);
+    if (!file) return;
+
+    string line;
+    while (getline(file, line)) {
+        size_t comma_pos = line.find(',');
+        if (comma_pos != string::npos) {
+            string name = line.substr(0, comma_pos);
+            string phone = line.substr(comma_pos + 1);
+            Contact* new_contact = new Contact(name, phone);
+            insert_contact(head, new_contact);
+        }
+    }
+    file.close();
+}
+
+void free_contacts(Contact* head) {
+    while (head) {
+        Contact* tmp = head;
+        head = head->next;
+        delete tmp;
+    }
+}
+
+void print_contacts(Contact* head) {
+    if (!head) {
+        cout << "No contacts available.\n";
+        return;
+    }
+    cout << "Contacts List:\n----------------------------\n";
+    Contact* current = head;
+    while (current) {
+        cout << "Name: " << current->name << "\nPhone: " << current->phone << "\n\n";
+        current = current->next;
+    }
+}
+
+void menu() {
+    cout << "==== Contact Book ====\n";
+    cout << "1. Add Contact\n";
+    cout << "2. Search Contact\n";
+    cout << "3. Update Contact\n";
+    cout << "4. Delete Contact\n";
+    cout << "5. Show All Contacts\n";
+    cout << "6. Exit\n";
+    cout << "Choose an option: ";
+}
+
+int main() {
+    Contact* head = nullptr;
+    const string filename = "contacts.txt";
+    load_contacts(head, filename);
+
+    int choice;
+    string name, phone;
+
+    do {
+        menu();
+        cin >> choice;
+        cin.ignore();  // clear newline
+
+        switch(choice) {
+            case 1:
+                cout << "Enter name: ";
+                getline(cin, name);
+                if (search_contact(head, name)) {
+                    cout << "Contact already exists!\n";
+                    break;
+                }
+                cout << "Enter phone: ";
+                getline(cin, phone);
+
+                insert_contact(head, new Contact(name, phone));
+                cout << "Contact added.\n";
+                break;
+
+            case 2:
+                cout << "Enter name to search: ";
+                getline(cin, name);
+                {
+                    Contact* found = search_contact(head, name);
+                    if (found) {
+                        cout << "Found contact:\nName: " << found->name << "\nPhone: " << found->phone << "\n";
+                    } else {
+                        cout << "Contact not found.\n";
+                    }
+                }
+                break;
+
+            case 3:
+                cout << "Enter name to update: ";
+                getline(cin, name);
+                if (search_contact(head, name)) {
+                    cout << "Enter new phone: ";
+                    getline(cin, phone);
+                    if (update_contact(head, name, phone)) {
+                        cout << "Contact updated.\n";
+                    } else {
+                        cout << "Update failed.\n";
+                    }
+                } else {
+                    cout << "Contact not found.\n";
+                }
+                break;
+
+            case 4:
+                cout << "Enter name to delete: ";
+                getline(cin, name);
+                if (delete_contact(head, name)) {
+                    cout << "Contact deleted.\n";
+                } else {
+                    cout << "Contact not found.\n";
+                }
+                break;
+
+            case 5:
+                print_contacts(head);
+                break;
+
+            case 6:
+                save_contacts(head, filename);
+                cout << "Contacts saved. Exiting...\n";
+                break;
+
+            default:
+                cout << "Invalid option. Try again.\n";
+        }
+        cout << "\n";
+    } while (choice != 6);
+
+    free_contacts(head);
+    return 0;
+}
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <cctype>
+
+using namespace std;
+
+struct Contact {
+    string name;
+    string phone;
+    Contact* next;
+    
+    Contact(const string& n, const string& p) : name(n), phone(p), next(nullptr) {}
+};
+
+// Helper function: case-insensitive string compare
+int strcasecmp(const string& s1, const string& s2) {
+    size_t len = min(s1.size(), s2.size());
+    for (size_t i = 0; i < len; i++) {
+        char c1 = tolower(s1[i]);
+        char c2 = tolower(s2[i]);
+        if (c1 < c2) return -1;
+        if (c1 > c2) return 1;
+    }
+    if (s1.size() < s2.size()) return -1;
+    if (s1.size() > s2.size()) return 1;
+    return 0;
+}
+
+void insert_contact(Contact*& head, Contact* new_contact) {
+    if (!head || strcasecmp(new_contact->name, head->name) < 0) {
+        new_contact->next = head;
+        head = new_contact;
+        return;
+    }
+    Contact* current = head;
+    while (current->next && strcasecmp(new_contact->name, current->next->name) > 0) {
+        current = current->next;
+    }
+    new_contact->next = current->next;
+    current->next = new_contact;
+}
+
+Contact* search_contact(Contact* head, const string& name) {
+    Contact* current = head;
+    while (current) {
+        if (strcasecmp(current->name, name) == 0)
+            return current;
+        current = current->next;
+    }
+    return nullptr;
+}
+
+bool update_contact(Contact* head, const string& name, const string& new_phone) {
+    Contact* contact = search_contact(head, name);
+    if (contact) {
+        contact->phone = new_phone;
+        return true;
+    }
+    return false;
+}
+
+bool delete_contact(Contact*& head, const string& name) {
+    Contact* current = head;
+    Contact* prev = nullptr;
+    while (current && strcasecmp(current->name, name) != 0) {
+        prev = current;
+        current = current->next;
+    }
+    if (!current) return false;
+
+    if (!prev) {
+        head = current->next;
+    } else {
+        prev->next = current->next;
+    }
+    delete current;
+    return true;
+}
+
+void save_contacts(Contact* head, const string& filename) {
+    ofstream file(filename);
+    if (!file) {
+        cerr << "Error saving contacts to file." << endl;
+        return;
+    }
+    Contact* current = head;
+    while (current) {
+        file << current->name << "," << current->phone << "\n";
+        current = current->next;
+    }
+    file.close();
+}
+
+void load_contacts(Contact*& head, const string& filename) {
+    ifstream file(filename);
+    if (!file) return;
+
+    string line;
+    while (getline(file, line)) {
+        size_t comma_pos = line.find(',');
+        if (comma_pos != string::npos) {
+            string name = line.substr(0, comma_pos);
+            string phone = line.substr(comma_pos + 1);
+            Contact* new_contact = new Contact(name, phone);
+            insert_contact(head, new_contact);
+        }
+    }
+    file.close();
+}
+
+void free_contacts(Contact* head) {
+    while (head) {
+        Contact* tmp = head;
+        head = head->next;
+        delete tmp;
+    }
+}
+
+void print_contacts(Contact* head) {
+    if (!head) {
+        cout << "No contacts available.\n";
+        return;
+    }
+    cout << "Contacts List:\n----------------------------\n";
+    Contact* current = head;
+    while (current) {
+        cout << "Name: " << current->name << "\nPhone: " << current->phone << "\n\n";
+        current = current->next;
+    }
+}
+
+void menu() {
+    cout << "==== Contact Book ====\n";
+    cout << "1. Add Contact\n";
+    cout << "2. Search Contact\n";
+    cout << "3. Update Contact\n";
+    cout << "4. Delete Contact\n";
+    cout << "5. Show All Contacts\n";
+    cout << "6. Exit\n";
+    cout << "Choose an option: ";
+}
+
+int main() {
+    Contact* head = nullptr;
+    const string filename = "contacts.txt";
+    load_contacts(head, filename);
+
+    int choice;
+    string name, phone;
+
+    do {
+        menu();
+        cin >> choice;
+        cin.ignore();  // clear newline
+
+        switch(choice) {
+            case 1:
+                cout << "Enter name: ";
+                getline(cin, name);
+                if (search_contact(head, name)) {
+                    cout << "Contact already exists!\n";
+                    break;
+                }
+                cout << "Enter phone: ";
+                getline(cin, phone);
+
+                insert_contact(head, new Contact(name, phone));
+                cout << "Contact added.\n";
+                break;
+
+            case 2:
+                cout << "Enter name to search: ";
+                getline(cin, name);
+                {
+                    Contact* found = search_contact(head, name);
+                    if (found) {
+                        cout << "Found contact:\nName: " << found->name << "\nPhone: " << found->phone << "\n";
+                    } else {
+                        cout << "Contact not found.\n";
+                    }
+                }
+                break;
+
+            case 3:
+                cout << "Enter name to update: ";
+                getline(cin, name);
+                if (search_contact(head, name)) {
+                    cout << "Enter new phone: ";
+                    getline(cin, phone);
+                    if (update_contact(head, name, phone)) {
+                        cout << "Contact updated.\n";
+                    } else {
+                        cout << "Update failed.\n";
+                    }
+                } else {
+                    cout << "Contact not found.\n";
+                }
+                break;
+
+            case 4:
+                cout << "Enter name to delete: ";
+                getline(cin, name);
+                if (delete_contact(head, name)) {
+                    cout << "Contact deleted.\n";
+                } else {
+                    cout << "Contact not found.\n";
+                }
+                break;
+
+            case 5:
+                print_contacts(head);
+                break;
+
+            case 6:
+                save_contacts(head, filename);
+                cout << "Contacts saved. Exiting...\n";
+                break;
+
+            default:
+                cout << "Invalid option. Try again.\n";
+        }
+        cout << "\n";
+    } while (choice != 6);
+
+    free_contacts(head);
+    return 0;
+}
